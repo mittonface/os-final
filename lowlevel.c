@@ -60,27 +60,101 @@ int create(char* diskName, char* file, long long length){
     
     for (possible_entry=0; possible_entry<fat.size; possible_entry++){
         fread(&entry, sizeof(entry), 1, vDisk);
-        s
+        
         if (entry.filename[0] == '\0'){
             break;
         }
     }
     
-    for (int i=fat.start_block; i<fat.end_block-blocks_needed; i++){
+    int i = 0;
+    for (i=fat.start_block; i<fat.end_block-blocks_needed; i++){
         // find the first free block of contiguous space
         if (isfree(i, fat.free, fat.vfree_length)){
             
-            // continue here
+            long long next = tryAllocate(i, fat.free, fat.end_block, blocks_needed);
             
+            if (next==0ll){
+                // we can allocate the space for this here
+                allocate(vDisk, &fat, i, blocks_needed);
+                setFATentry(vDisk, &fat, possible_entry, file, i, length);
+            }else{
+                // try the next location
+                i = i+(blocks_needed-next);
+            }
+        }else{
+            // we couldnt allocate the space
         }
     }
     
+    fclose(vDisk);
+    free(fat.free);
+    
+    if (i >= fat.end_block-blocks_needed){
+        printf("Allocation failed. There was not enough contiguous space. \n");
+        return 1;
+    }
     
     return 0;
 }
 
 
+int setFATentry(FILE *vDisk, struct FAT *fat, int entry_num,
+                char* file, long long pos, long long length)
+{
+    
+    struct FAT_entry entry;
+    
+    // create the new entry
+    strcpy(entry.filename, file);
+    entry.length = length;
+    entry.inode_number = pos;
+    
+    // seek to the entry location on the vDisk
+    // that means: past the FAT table, past the char string, and to entry #entry_num
+    fseek(vDisk,
+          sizeof(struct FAT) +                     // FAT
+          fat->vfree_length +                      // char string
+          (sizeof(struct FAT_entry) * entry_num),  // prev FAT entries
+          SEEK_SET);
+    
+    // write the FAT entry to disk
+    fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
+    
+    return 0;
+}
 
+
+int allocate(FILE *vDisk, struct FAT *fat, long long pos, long long length){
+
+    // populate the char vector with 1s to show that we have used
+    // the blocks
+    while (length){
+        fat->free[pos] = 1;
+        pos++;
+        length--;
+    }
+    
+    // seek to the char vector on disk, write the new char vector to disk
+    fseek(vDisk, sizeof(struct FAT), SEEK_SET);
+    fwrite(fat->free, 1, fat->vfree_length, vDisk);
+    
+    return 0;
+}
+
+// I guess we're checking to see if we can fit this file in
+// this location.
+int tryAllocate(long long pos, unsigned char* free, long long end_block, long long length){
+    
+    char offset_check = free[pos];
+    while(length){
+        if (offset_check)
+            return length;
+        pos++;
+        offset_check = free[pos];
+        length--;
+    }
+    return 0;
+}
 
 int isfree(long long pos, unsigned char* free, long long freesize){
     return !(free[pos]);
