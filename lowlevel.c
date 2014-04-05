@@ -33,6 +33,58 @@ int format(char* filename, long long size){
     return 0;
 }
 
+int create(char* diskName, char* file, long long length){
+    
+    struct FAT fat;
+    struct FAT_entry entry;
+    
+    // open the vDisk
+    vDisk = fopen(diskName, "r+");
+    
+    // find out how many blocks we need to store this file.
+    long long blocks_needed = length / BLOCK_SIZE;
+    
+    // round up
+    if (length % BLOCK_SIZE)
+        blocks_needed++;
+    
+    // read the FAT in
+    fread(&fat, sizeof(fat), 1, vDisk);
+    
+    // read in char vector for num of blocks
+    fat.free = (unsigned char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
+    // search for a free entry in the table
+    int possible_entry;
+    
+    for (possible_entry=0; possible_entry<fat.size; possible_entry++){
+        fread(&entry, sizeof(entry), 1, vDisk);
+        s
+        if (entry.filename[0] == '\0'){
+            break;
+        }
+    }
+    
+    for (int i=fat.start_block; i<fat.end_block-blocks_needed; i++){
+        // find the first free block of contiguous space
+        if (isfree(i, fat.free, fat.vfree_length)){
+            
+            // continue here
+            
+        }
+    }
+    
+    
+    return 0;
+}
+
+
+
+
+int isfree(long long pos, unsigned char* free, long long freesize){
+    return !(free[pos]);
+}
 
 // Writes the initial FAT to the beginning of vDisk
 unsigned char* WriteFAT(struct FAT *fat, long long size){
