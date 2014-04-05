@@ -76,7 +76,7 @@ int create(char* diskName, char* file, long long length){
 
                 // we can allocate the space for this here
                 allocate(vDisk, fat, i, blocks_needed);
-                setFATentry(vDisk, fat, possible_entry, file, i, blocks_needed);
+                setFATentry(vDisk, fat, possible_entry, file, i, length);
                 break;
             }else{
 
@@ -99,6 +99,89 @@ int create(char* diskName, char* file, long long length){
     return 0;
 }
 
+// remove a file from the disk
+int removeFile(char* diskName, char* file){
+    
+    // open the FAT
+    struct FAT fat;
+    vDisk = fopen(diskName, "r+");
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    // load up the char vector
+    fat.free=(unsigned char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
+    
+    // find the file that we want to delete.
+    struct FAT_entry entry;
+    
+    int del_entry;
+    for (del_entry=0; del_entry<fat.fat_size; del_entry++){
+        fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        if (!strcmp(entry.filename, file))
+            break;
+    }
+    
+    // find out how many blocks the entry was using, rounding up
+    long  blocks_needed = entry.length / BLOCK_SIZE;
+    if (entry.length % BLOCK_SIZE)
+        blocks_needed++;
+    
+    // delete fat entry
+    delFATentry(vDisk, fat, del_entry);
+    
+    // deallocate this from char vector
+    deallocate(vDisk, fat, entry.inode_number, blocks_needed);
+    
+    if (del_entry >= fat.fat_size)
+        printf("Could not find (%s) for deletion. \n", file);
+    
+    fclose(vDisk);
+    free(fat.free);
+    
+    return 0;
+    
+}
+
+
+int deallocate(FILE* vDisk, struct FAT fat, long long pos, long long length){
+    
+    // zero all the appropriate locations in the char vector
+    while (length){
+        fat.free[pos] = 0;
+        pos++;
+        length--;
+    }
+    
+    // rewrite back to disk with new changes
+    fseek(vDisk, sizeof(struct FAT), SEEK_SET);
+    fwrite(fat.free, 1, fat.vfree_length, vDisk);
+    
+    return 0;
+}
+
+int delFATentry(FILE *vDisk, struct FAT fat, int entry_num){
+    struct FAT_entry entry;
+    
+    // delete basically means set everything to blank
+    strcpy(entry.filename, "");
+    entry.length = 0;
+    entry.inode_number = 0;
+    
+    // seek to the entry location on the vDisk
+    //   seeking past FAT table, char vector and previous entries
+    fseek(vDisk,
+          sizeof(struct FAT) +                     // FAT size
+          fat.vfree_length +                       // char vector size
+          (sizeof(struct FAT_entry) * entry_num),  // previous entries
+          SEEK_SET);
+    
+    
+    // write the empty entry at this location
+    fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
+
+    return 0;
+}
 
 int setFATentry(FILE *vDisk, struct FAT fat, int entry_num,
                 char* file, long long pos, long long length)

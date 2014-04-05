@@ -28,6 +28,7 @@ int main(int argc, const char * argv[])
     
     // can only allocate two more blocks
     create("testDisk", "t1estfiewle", 512);
+    removeFile("testDisk", "t1estfiewle");
 
 
 

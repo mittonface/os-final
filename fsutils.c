@@ -36,7 +36,10 @@ int info(char* filename){
         
         if (entry.filename[0] != '\0'){
             num_files++;
-            num_blocks += entry.length;
+            num_blocks += entry.length / BLOCK_SIZE;
+            
+            if (entry.length % BLOCK_SIZE)
+                num_blocks++;
             
             // print out information about this entry.
             printf("Entry #%d -> %s \n", num_files, entry.filename);
