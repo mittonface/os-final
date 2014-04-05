@@ -25,7 +25,7 @@ struct FAT{
     long long end_block;
     long long vfree_length;
     unsigned char* free;
-    int size;
+    int fat_size;
 };
 
 struct file_block{

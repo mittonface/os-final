@@ -25,12 +25,12 @@ int info(char* filename){
     
     // Print out information about the FAT
     printf("Total number of Blocks -> %lld \n", fat.num_blocks);
-    printf("Size of FAT -> %d \n", fat.size);
+    printf("Size of FAT -> %d \n", fat.fat_size);
     
     // seek up to the start of the entries
     fseek(vDisk, fat.vfree_length, SEEK_CUR);
     
-    for (int i=0; i<fat.size; i++){
+    for (int i=0; i<fat.fat_size; i++){
         // read in an entry
         fread(&entry, sizeof(entry), 1, vDisk);
         
@@ -63,7 +63,7 @@ int list(char* filename, char* args){
     // seek to the entries
     fseek(vDisk, fat.vfree_length, SEEK_CUR);
     
-    for (int i=0; i<fat.size; i++){
+    for (int i=0; i<fat.fat_size; i++){
         // get the entry
         fread(&entry, sizeof(entry), 1, vDisk);
     

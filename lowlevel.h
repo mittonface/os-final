@@ -17,12 +17,12 @@
 int format(char* filename, long long size);
 int create(char* diskName, char* file, long long length);
 
-unsigned char* WriteFAT(struct FAT *fat, long long size);
-int writeFATentries(struct FAT *fat);
+unsigned char* WriteFAT(struct FAT fat, long long size);
+int writeFATentries(struct FAT fat);
 int writeEmptyBlockData(long long size);
 int isfree(long long pos, unsigned char* free, long long freesize);
 int tryAllocate(long long pos, unsigned char* free, long long end_block, long long length);
-int allocate(FILE *vDisk, struct FAT *fat, long long pos, long long length);
-int setFATentry(FILE *vDisk, struct FAT *fat, int entry_num, char* file, long long pos, long long length );
+int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length);
+int setFATentry(FILE *vDisk, struct FAT fat, int entry_num, char* file, long long pos, long long length );
 
 #endif

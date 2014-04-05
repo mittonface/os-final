@@ -13,6 +13,11 @@ int main(int argc, const char * argv[])
 {
 
     format("testDisk", 1000);
+    
+    
+    create("testDisk", "testfile", 100);
+    info("testDisk");
+
     info("testDisk");
 
 }

@@ -16,13 +16,13 @@ int format(char* filename, long long size){
     
     
     // create the FAT at the beginning of vDisk
-    char_vector = WriteFAT(&fat, size);
+    char_vector = WriteFAT(fat, size);
     
     // write the free block char vector
     fwrite(char_vector, size+1, 1, vDisk);
     
     // write blank file entries
-    writeFATentries(&fat);
+    writeFATentries(fat);
     
     // init all blocks to 0
     writeEmptyBlockData(size);
@@ -49,7 +49,7 @@ int create(char* diskName, char* file, long long length){
         blocks_needed++;
     
     // read the FAT in
-    fread(&fat, sizeof(fat), 1, vDisk);
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
     
     // read in char vector for num of blocks
     fat.free = (unsigned char*)malloc(fat.vfree_length);
@@ -57,8 +57,7 @@ int create(char* diskName, char* file, long long length){
     
     // search for a free entry in the table
     int possible_entry;
-    
-    for (possible_entry=0; possible_entry<fat.size; possible_entry++){
+    for (possible_entry=0; possible_entry<fat.fat_size; possible_entry++){
         fread(&entry, sizeof(entry), 1, vDisk);
         
         if (entry.filename[0] == '\0'){
@@ -66,7 +65,8 @@ int create(char* diskName, char* file, long long length){
         }
     }
     
-    int i = 0;
+    int i;
+    
     for (i=fat.start_block; i<fat.end_block-blocks_needed; i++){
         // find the first free block of contiguous space
         if (isfree(i, fat.free, fat.vfree_length)){
@@ -75,8 +75,9 @@ int create(char* diskName, char* file, long long length){
             
             if (next==0ll){
                 // we can allocate the space for this here
-                allocate(vDisk, &fat, i, blocks_needed);
-                setFATentry(vDisk, &fat, possible_entry, file, i, length);
+                allocate(vDisk, fat, i, blocks_needed);
+                setFATentry(vDisk, fat, possible_entry, file, i, length);
+                break;
             }else{
                 // try the next location
                 i = i+(blocks_needed-next);
@@ -98,7 +99,7 @@ int create(char* diskName, char* file, long long length){
 }
 
 
-int setFATentry(FILE *vDisk, struct FAT *fat, int entry_num,
+int setFATentry(FILE *vDisk, struct FAT fat, int entry_num,
                 char* file, long long pos, long long length)
 {
     
@@ -113,7 +114,7 @@ int setFATentry(FILE *vDisk, struct FAT *fat, int entry_num,
     // that means: past the FAT table, past the char string, and to entry #entry_num
     fseek(vDisk,
           sizeof(struct FAT) +                     // FAT
-          fat->vfree_length +                      // char string
+          fat.vfree_length +                      // char string
           (sizeof(struct FAT_entry) * entry_num),  // prev FAT entries
           SEEK_SET);
     
@@ -124,19 +125,19 @@ int setFATentry(FILE *vDisk, struct FAT *fat, int entry_num,
 }
 
 
-int allocate(FILE *vDisk, struct FAT *fat, long long pos, long long length){
+int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length){
 
     // populate the char vector with 1s to show that we have used
     // the blocks
     while (length){
-        fat->free[pos] = 1;
+        fat.free[pos] = 1;
         pos++;
         length--;
     }
     
     // seek to the char vector on disk, write the new char vector to disk
     fseek(vDisk, sizeof(struct FAT), SEEK_SET);
-    fwrite(fat->free, 1, fat->vfree_length, vDisk);
+    fwrite(fat.free, 1, fat.vfree_length, vDisk);
     
     return 0;
 }
@@ -161,29 +162,29 @@ int isfree(long long pos, unsigned char* free, long long freesize){
 }
 
 // Writes the initial FAT to the beginning of vDisk
-unsigned char* WriteFAT(struct FAT *fat, long long size){
+unsigned char* WriteFAT(struct FAT fat, long long size){
     
     // initialize these things.
-    fat->num_blocks = size;
-    fat->size = MAX_FILES;
-    fat->start_block = 0;
-    fat->end_block = 0;
-    fat->vfree_length = size+1;
+    fat.num_blocks = size;
+    fat.fat_size = 1024;
+    fat.start_block = 0;
+    fat.end_block = size-1;
+    fat.vfree_length = size+1;
     
     // character per block? I still am not sure what this characteristic string is
-    fat->free = (unsigned char*)malloc(fat->vfree_length);
+    fat.free = (unsigned char*)malloc(fat.vfree_length);
     
-    for(int i=0; i<fat->vfree_length; i++)
-        fat->free[i] = 0;
+    for(int i=0; i<fat.vfree_length; i++)
+        fat.free[i] = 0;
     
     // write the FAT to the beginning of vdisk
     fwrite(&fat, sizeof(fat), 1, vDisk);
     
-    return fat->free;
+    return fat.free;
 }
 
 // write blank entries for the entire fat table.
-int writeFATentries(struct FAT *fat){
+int writeFATentries(struct FAT fat){
     struct FAT_entry entry;
     
     entry.inode_number = 0ll;
@@ -196,7 +197,7 @@ int writeFATentries(struct FAT *fat){
     entry.filename[0] = '\0';
     
     // for each member of the FAT table, write this blank entry
-    for (int i=0; i<=fat->size; i++)
+    for (int i=0; i<=fat.fat_size; i++)
         fwrite(&entry, sizeof(entry), 1, vDisk);
     
     return 0;
