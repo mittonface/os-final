@@ -17,8 +17,8 @@
 int format(char* filename, long long size);
 int create(char* diskName, char* file, long long length);
 
-unsigned char* WriteFAT(struct FAT fat, long long size);
-int writeFATentries(struct FAT fat);
+unsigned char* WriteFAT(long long size);
+int writeFATentries();
 int writeEmptyBlockData(long long size);
 int isfree(long long pos, unsigned char* free, long long freesize);
 int tryAllocate(long long pos, unsigned char* free, long long end_block, long long length);

@@ -39,7 +39,8 @@ int info(char* filename){
             num_blocks += entry.length;
             
             // print out information about this entry.
-            printf("Entry #%d -> %s", num_files, entry.filename);
+            printf("Entry #%d -> %s \n", num_files, entry.filename);
+            printf("\t inode: %lld, length: %lld \n", entry.inode_number, entry.length);
         }
     }
     

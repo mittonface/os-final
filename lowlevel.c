@@ -16,13 +16,13 @@ int format(char* filename, long long size){
     
     
     // create the FAT at the beginning of vDisk
-    char_vector = WriteFAT(fat, size);
+    char_vector = WriteFAT(size);
     
     // write the free block char vector
     fwrite(char_vector, size+1, 1, vDisk);
     
     // write blank file entries
-    writeFATentries(fat);
+    writeFATentries();
     
     // init all blocks to 0
     writeEmptyBlockData(size);
@@ -70,20 +70,21 @@ int create(char* diskName, char* file, long long length){
     for (i=fat.start_block; i<fat.end_block-blocks_needed; i++){
         // find the first free block of contiguous space
         if (isfree(i, fat.free, fat.vfree_length)){
-            
             long long next = tryAllocate(i, fat.free, fat.end_block, blocks_needed);
             
             if (next==0ll){
+
                 // we can allocate the space for this here
                 allocate(vDisk, fat, i, blocks_needed);
-                setFATentry(vDisk, fat, possible_entry, file, i, length);
+                setFATentry(vDisk, fat, possible_entry, file, i, blocks_needed);
                 break;
             }else{
+
                 // try the next location
                 i = i+(blocks_needed-next);
             }
         }else{
-            // we couldnt allocate the space
+            i++;
         }
     }
     
@@ -146,7 +147,8 @@ int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length){
 // this location.
 int tryAllocate(long long pos, unsigned char* free, long long end_block, long long length){
     
-    char offset_check = free[pos];
+        char offset_check = (free[pos]);
+    
     while(length){
         if (offset_check)
             return length;
@@ -162,8 +164,8 @@ int isfree(long long pos, unsigned char* free, long long freesize){
 }
 
 // Writes the initial FAT to the beginning of vDisk
-unsigned char* WriteFAT(struct FAT fat, long long size){
-    
+unsigned char* WriteFAT(long long size){
+    struct FAT fat;
     // initialize these things.
     fat.num_blocks = size;
     fat.fat_size = 1024;
@@ -174,8 +176,9 @@ unsigned char* WriteFAT(struct FAT fat, long long size){
     // character per block? I still am not sure what this characteristic string is
     fat.free = (unsigned char*)malloc(fat.vfree_length);
     
-    for(int i=0; i<fat.vfree_length; i++)
+    for(int i=0; i<fat.vfree_length; i++){
         fat.free[i] = 0;
+    }
     
     // write the FAT to the beginning of vdisk
     fwrite(&fat, sizeof(fat), 1, vDisk);
@@ -184,22 +187,27 @@ unsigned char* WriteFAT(struct FAT fat, long long size){
 }
 
 // write blank entries for the entire fat table.
-int writeFATentries(struct FAT fat){
+int writeFATentries(){
+    struct FAT fat;
     struct FAT_entry entry;
+    
+    // load the fat table
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
     
     entry.inode_number = 0ll;
     entry.length = 0ll;
     
     // filename to blank, starting with \0
-    for (int i=0; i<MAX_NAME_LENGTH; i++)
+    for (int i=0; i<MAX_NAME_LENGTH; i++){
         entry.filename[i] = ' ';
+    }
     
     entry.filename[0] = '\0';
     
     // for each member of the FAT table, write this blank entry
-    for (int i=0; i<=fat.fat_size; i++)
+    for (int i=0; i<=fat.fat_size; i++){
         fwrite(&entry, sizeof(entry), 1, vDisk);
-    
+    }
     return 0;
 }
 
@@ -208,11 +216,13 @@ int writeFATentries(struct FAT fat){
 int writeEmptyBlockData(long long size){
     struct file_block buffer;
     
-    for(int i=0; i<BLOCK_SIZE; i++)
+    for(int i=0; i<BLOCK_SIZE; i++){
         buffer.block[i] = 0;
+    }
 
-    for (int i=0; i<size; i++)
+    for (long long i=0; i<size; i++){
         fwrite(&buffer, BLOCK_SIZE, 1, vDisk);
+    }
     
     return 0;
 }
