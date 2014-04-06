@@ -8,13 +8,18 @@
 
 #include "lowlevel.h"
 
-int acquire_lock(FILE* vDisk, char* fileName){
-    
-    // start from the beginning of the disk
-    rewind(vDisk);
-    
 
-    // load the fat
+// this is going to resize files pretty destructively.
+// I'll allow decreasing filesize and removing data,
+// but I'll try to not overwrite files if I increase the filesize
+int resize(char* diskName, char* fileName, long long new_size){
+    // open the vDisk
+    vDisk = fopen(diskName, "r+");
+    
+    if (acquire_lock(vDisk, fileName))
+        return 1;
+    
+    // open the FAT
     struct FAT fat;
     fread(&fat, sizeof(struct FAT), 1, vDisk);
     
@@ -22,83 +27,69 @@ int acquire_lock(FILE* vDisk, char* fileName){
     fat.free = (char*)malloc(fat.vfree_length);
     fread(fat.free, fat.vfree_length, 1, vDisk);
     
-    // find the entry to lock
+    // first I'll find the file to be resized
     struct FAT_entry entry;
     
-    int lock_entry;
-    for(lock_entry=0; lock_entry<fat.fat_size; lock_entry++){
+    int resize_entry;
+    for (resize_entry=0; resize_entry<fat.fat_size; resize_entry++){
         fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
-        
-        if (strcmp(entry.filename, fileName) == 0)
-            break;
-        
-    }
-    
-    
-    if(lock_entry >= fat.fat_size){
-        printf("Could not find file (%s) for locking. \n", fileName);
-        rewind(vDisk);
-        return 1;
-    }else{
-        if (entry.locked == 1){
-            printf("Unable to lock file (%s) \n", fileName);
-        }else{
-            // I think I've seeked past the entry I want to overwrite
-            // (the one I currently have.) make the change, seek backwards
-            // write.
-            entry.locked = 1;
-            fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
-            fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
-            rewind(vDisk);
-        }
-    }
-    
-    return 0;
-}
 
-int release_lock(FILE* vDisk, char* fileName){
-    // start from the beginning of the disk
-    rewind(vDisk);
-    
-    // load the fat
-    struct FAT fat;
-    fread(&fat, sizeof(struct FAT), 1, vDisk);
-    
-    // get char vector
-    fat.free = (char*)malloc(fat.vfree_length);
-    fread(fat.free, fat.vfree_length, 1, vDisk);
-    
-    // find the entry to lock
-    struct FAT_entry entry;
-    
-    int lock_entry;
-    for(lock_entry=0; lock_entry<fat.fat_size; lock_entry++){
-        fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
-        
         if (strcmp(entry.filename, fileName) == 0)
             break;
-        
     }
     
+    // now that I have the entry for the file, I know the starting block.
+    // so I just need to deal with the characteristic vector to deallocate / allocate
+    // some space. And then change the size stored on the entry.
     
-    if (lock_entry > fat.fat_size){
-        printf("Could not find file (%s) for unlocking. \n", fileName);
-        rewind(vDisk);
-        return 1;
-    }else{
-        if (entry.locked == 0)
-            return 0;  // it was already unlocked, that makes things easy.
+    long long blocks_used = entry.length / BLOCK_SIZE;
+    if (entry.length % BLOCK_SIZE)
+        blocks_used++;
+    
+    long long blocks_needed = new_size / BLOCK_SIZE;
+    if (new_size % BLOCK_SIZE)
+        blocks_needed++;
+    
+    
+
+    if (blocks_used > blocks_needed){
+        puts("did I make it here?");
+
+        // we're shrinking the file. This could cause us to lose data.
+        long long original_endblock = entry.inode_number + blocks_used;
+        long long new_endblock = entry.inode_number + blocks_needed;
         
-        // just like when locking, we've already seeked past the entry.
-        // so we want to seek backwards a bit and save there.
-        entry.locked = 0;
+        for(long long i=original_endblock; i<=new_endblock; i++)
+            fat.free[i] = 0;
+        
+        // now I need to write the entry back to disk.
+        // seek back one entry and save the entry
+        entry.length = new_size;
         fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
         fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
-        rewind(vDisk);
+        
+        // now I need to write fat.free back to disk
+        // easiest to just seek there from the beginning of the file.
+        fseek(vDisk,
+              sizeof(struct FAT),
+              SEEK_SET);
+        
+        fwrite(fat.free, 1, fat.vfree_length, vDisk);
+        return 0;
+    }else if (blocks_used < blocks_needed){
+        puts("did I make it fadsfhere?");
+
+        // we're growing the file. I'll try to find somewhere that this file can fit.
+        // but I won't overwrite any data if I can't find the contiguous space
+    }else{
+        puts("did I mdasake it here?");
+
+        // same number of blocks, I'm not going to do anything here.
+        return 0;
     }
+    
     return 0;
 }
-
 
 int retrieve(char* diskName, char* fileName){
 
@@ -227,31 +218,6 @@ int readFile(char* diskName, char* fileName){
     return 0;
 }
 
-int format(char* filename, long long size){
-    
-    struct FAT fat;
-    char *char_vector;
-    vDisk = fopen(filename, "wb");
-    
-    
-    // create the FAT at the beginning of vDisk
-    char_vector = WriteFAT(size);
-    
-    // write the free block char vector
-    fwrite(char_vector, size+1, 1, vDisk);
-    
-    // write blank file entries
-    writeFATentries();
-    
-    // init all blocks to 0
-    writeEmptyBlockData(size);
-    
-    fclose(vDisk);
-    free(char_vector);
-    
-    return 0;
-}
-
 int create(char* diskName, char* file, long long length){
     
     struct FAT fat;
@@ -292,13 +258,13 @@ int create(char* diskName, char* file, long long length){
             long long next = tryAllocate(i, fat.free, fat.end_block, blocks_needed);
             
             if (next==0ll){
-
+                
                 // we can allocate the space for this here
                 allocate(vDisk, fat, i, blocks_needed);
                 setFATentry(vDisk, fat, possible_entry, file, i, length);
                 break;
             }else{
-
+                
                 // try the next location
                 i = i+(blocks_needed-next);
             }
@@ -419,9 +385,9 @@ int copy(char *diskName, char* file){
                 
                 // now we actually need to write the file to the disk
                 long long data_start = sizeof(struct FAT) +
-                    fat.vfree_length +
-                    (sizeof(struct FAT_entry)*fat.fat_size) +
-                    (pos*BLOCK_SIZE);
+                fat.vfree_length +
+                (sizeof(struct FAT_entry)*fat.fat_size) +
+                (pos*BLOCK_SIZE);
                 
                 
                 fseek(vDisk, data_start, SEEK_SET);
@@ -454,6 +420,34 @@ int copy(char *diskName, char* file){
     
     return 0;
 }
+
+
+
+int format(char* filename, long long size){
+    
+    struct FAT fat;
+    char *char_vector;
+    vDisk = fopen(filename, "wb");
+    
+    
+    // create the FAT at the beginning of vDisk
+    char_vector = WriteFAT(size);
+    
+    // write the free block char vector
+    fwrite(char_vector, size+1, 1, vDisk);
+    
+    // write blank file entries
+    writeFATentries();
+    
+    // init all blocks to 0
+    writeEmptyBlockData(size);
+    
+    fclose(vDisk);
+    free(char_vector);
+    
+    return 0;
+}
+
 
 
 int deallocate(FILE* vDisk, struct FAT fat, long long pos, long long length){
@@ -623,3 +617,95 @@ int writeEmptyBlockData(long long size){
     
     return 0;
 }
+
+int acquire_lock(FILE* vDisk, char* fileName){
+    
+    // start from the beginning of the disk
+    rewind(vDisk);
+    
+    
+    // load the fat
+    struct FAT fat;
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    // get char vector
+    fat.free = (char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
+    // find the entry to lock
+    struct FAT_entry entry;
+    
+    int lock_entry;
+    for(lock_entry=0; lock_entry<fat.fat_size; lock_entry++){
+        fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        
+        if (strcmp(entry.filename, fileName) == 0)
+            break;
+        
+    }
+    
+    
+    if(lock_entry >= fat.fat_size){
+        printf("Could not find file (%s) for locking. \n", fileName);
+        rewind(vDisk);
+        return 1;
+    }else{
+        if (entry.locked == 1){
+            printf("Unable to lock file (%s) \n", fileName);
+        }else{
+            // I think I've seeked past the entry I want to overwrite
+            // (the one I currently have.) make the change, seek backwards
+            // write.
+            entry.locked = 1;
+            fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
+            fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
+            rewind(vDisk);
+        }
+    }
+    
+    return 0;
+}
+
+int release_lock(FILE* vDisk, char* fileName){
+    // start from the beginning of the disk
+    rewind(vDisk);
+    
+    // load the fat
+    struct FAT fat;
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    // get char vector
+    fat.free = (char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
+    // find the entry to lock
+    struct FAT_entry entry;
+    
+    int lock_entry;
+    for(lock_entry=0; lock_entry<fat.fat_size; lock_entry++){
+        fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        
+        if (strcmp(entry.filename, fileName) == 0)
+            break;
+        
+    }
+    
+    
+    if (lock_entry > fat.fat_size){
+        printf("Could not find file (%s) for unlocking. \n", fileName);
+        rewind(vDisk);
+        return 1;
+    }else{
+        if (entry.locked == 0)
+            return 0;  // it was already unlocked, that makes things easy.
+        
+        // just like when locking, we've already seeked past the entry.
+        // so we want to seek backwards a bit and save there.
+        entry.locked = 0;
+        fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
+        fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        rewind(vDisk);
+    }
+    return 0;
+}
+
