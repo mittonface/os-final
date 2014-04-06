@@ -105,12 +105,10 @@ int retrieve(char* diskName, char* fileName){
     // open the vDisk
     vDisk = fopen(diskName, "r+");
     
-    acquire_lock(vDisk, fileName);
-    acquire_lock(vDisk, fileName);
-    release_lock(vDisk, fileName);
-    acquire_lock(vDisk, fileName);
-
-
+    if (acquire_lock(vDisk, fileName))
+        return 1;
+    
+    
     // open the FAT
     struct FAT fat;
     fread(&fat, sizeof(struct FAT), 1, vDisk);
@@ -159,6 +157,10 @@ int retrieve(char* diskName, char* fileName){
         bytes_to_read = bytes_to_read - BLOCK_SIZE;
     }
     
+    release_lock(vDisk, fileName);
+    fclose(new_file);
+    fclose(vDisk);
+    free(fat.free);
     return 0;
 }
 
@@ -167,6 +169,10 @@ int readFile(char* diskName, char* fileName){
     
     // open the vDisk
     vDisk = fopen(diskName, "r");
+    
+    // acquire the lock for read the file. Or return if we can't get it
+    if (acquire_lock(vDisk, fileName))
+        return 1;
     
     // open the FAT
     struct FAT fat;
@@ -212,7 +218,11 @@ int readFile(char* diskName, char* fileName){
     if(read_entry >= fat.fat_size)
         printf("Could not find file (%s) for reading. \n", fileName);
     
+    // release the lock on the file.
+    release_lock(vDisk, fileName);
+    
     fclose(vDisk);
+    free(fat.free);
 
     return 0;
 }
