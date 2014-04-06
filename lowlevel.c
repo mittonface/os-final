@@ -6,8 +6,91 @@
 //  Copyright (c) 2014 Brent Mitton. All rights reserved.
 //
 
+/**
+ * @file
+ *  Most of the OS level functions will be here.
+ */
 #include "lowlevel.h"
 
+
+
+/**
+ * @param diskName
+ *  The filename of the virtual disk
+ * @param fileName
+ *  The file that we want to perform the operatoin on.
+ * @param new_inode
+ *  The new starting block that we want to move the file to.
+ * @return 
+ *  0 - if we moved the file
+ *  1 - if we could not move the file
+ *
+ *  Moves a file to the given block. 
+ * 
+ *  Will not move a file to a block if there is already a file
+ *  there is not enough contiguous empty space for it
+ */
+int moveFile(char* diskName, char* fileName, long long new_inode){
+    
+    // first thing we'll do is see if we have enough free contiguous space
+    // at the desired location
+    vDisk = fopen(diskName, "r+");
+    
+    // load FAT and char vector
+    struct FAT fat;
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    fat.free = (char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
+    // we'll have to get the information about the file we want to move
+    struct FAT_entry entry;
+
+    int move_entry;
+    for (move_entry=0; move_entry<fat.fat_size; move_entry++){
+        fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        
+        if (strcmp(entry.filename, fileName) == 0)
+            break;
+    }
+    
+    if (move_entry >= fat.fat_size){
+        printf("Could not find the file (%s) to move.", fileName);
+        return 1;
+    }
+    
+    // find out how many blocks we need for this file
+    int blocks_needed = entry.length / BLOCK_SIZE;
+    if (entry.length % BLOCK_SIZE)
+        blocks_needed++;
+    
+    int canMove = 1;
+
+    // check the characteristic vector for the free space
+    for (int i=new_inode; i<=new_inode+blocks_needed; i++){
+        
+        if (i > fat.end_block){
+            canMove = 0;
+            break;
+        }
+        
+        if (fat.free[i] != 0){
+            canMove = 0;
+            break;
+        }
+    }
+    
+    
+    if (canMove == 1){
+        puts("CAN MOVE");
+    }else{
+        printf("Cannot move file (%s) to block (%lld)", fileName, new_inode);
+        return 1;
+    }
+    
+    
+    return 0;
+}
 
 /**
  * @param diskName
@@ -119,7 +202,7 @@ int resize(char* diskName, char* fileName, long long new_size){
             return 0;
             
         }else{
-            // we have to move the file
+            // writing a function for file moving
             printf("we cannot do an in place allocation");
         }
         
