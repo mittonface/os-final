@@ -18,6 +18,7 @@
 int format(char* filename, long long size);
 int create(char* diskName, char* file, long long length);
 int removeFile(char* diskName, char* file);
+int copy(char* diskName, char* file);
 
 
 // these are lower level operations used by those ^^

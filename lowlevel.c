@@ -84,7 +84,8 @@ int create(char* diskName, char* file, long long length){
                 i = i+(blocks_needed-next);
             }
         }else{
-            i++;
+            // try the next pos
+            i++;  // I have no idea why I need to do this...
         }
     }
     
@@ -143,7 +144,97 @@ int removeFile(char* diskName, char* file){
     
 }
 
-
+// I think that this copies a file to our vDisk
+int copy(char *diskName, char* file){
+    
+    // open our disk
+    vDisk = fopen(diskName, "r+");
+    
+    // will store some information about a local file
+    struct stat localFile;
+    
+    if (stat(file, &localFile) != 0){
+        printf("Could not stat file %s \n", file);
+        exit(EXIT_FAILURE);
+    }
+    
+    long long length = localFile.st_size;
+    
+    // get number of blocks needed for this file.
+    // round up
+    long blocks_needed = length / BLOCK_SIZE;
+    if (length % BLOCK_SIZE)
+        blocks_needed++;
+    
+    // load up our FAT
+    struct FAT fat;
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    // load the char vector
+    fat.free=(unsigned char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
+    struct FAT_entry entry;
+    
+    // search the FAT for an available location to copy the file
+    int possible_entry;
+    for (possible_entry=0; possible_entry<fat.fat_size; possible_entry++){
+        fread(&entry, sizeof(entry), 1, vDisk);
+        
+        if (entry.filename[0]=='\0'){
+            break;
+        }
+    }
+    
+    // now we've got to find some blocks to store the file
+    int pos;
+    for(pos=fat.start_block; pos<fat.end_block-blocks_needed; pos++){
+        // find some available contiguous space
+        if (isfree(pos, fat.free, fat.vfree_length)){
+            long long next = tryAllocate(pos, fat.free, fat.end_block, blocks_needed);
+            
+            if (next==0l){
+                // we can allocate space!
+                allocate(vDisk, fat, pos, blocks_needed);
+                setFATentry(vDisk, fat, possible_entry, file, pos, length);
+                
+                // now we actually need to write the file to the disk
+                long long data_start = sizeof(struct FAT) +
+                    fat.vfree_length +
+                    (sizeof(struct FAT_entry)*fat.fat_size) +
+                    (pos*BLOCK_SIZE) + 10240;
+                
+                
+                fseek(vDisk, data_start, SEEK_SET);
+                
+                FILE* source_file = fopen(file, "rb");
+                char buffer[BLOCK_SIZE];
+                int bytes_read;
+                
+                while((bytes_read=fread(buffer, 1, BLOCK_SIZE, source_file))){
+                    fwrite(buffer, bytes_read, 1, vDisk);
+                }
+                
+                fclose(source_file);
+                break;
+            }else{
+                pos = pos+(blocks_needed - next);
+            }
+        }else{
+            // couldnt continguous space at pos.
+            pos++;
+        }
+    }
+    
+    fclose(vDisk);
+    free(fat.free);
+    
+    if (pos >= fat.end_block - blocks_needed){
+        printf("Allocation failed for copy; not enough contiguous space");
+    }
+    
+    return 0;
+}
 int deallocate(FILE* vDisk, struct FAT fat, long long pos, long long length){
     
     // zero all the appropriate locations in the char vector
