@@ -65,9 +65,12 @@ int resize(char* diskName, char* fileName, long long new_size){
     long long blocks_needed = new_size / BLOCK_SIZE;
     if (new_size % BLOCK_SIZE)
         blocks_needed++;
+    
+    printf("blocks needed %lld", blocks_needed);
+    printf("blocks used %lld", blocks_used);
+
 
     if (blocks_used > blocks_needed){
-
         // we're shrinking the file. This could cause us to lose data.
         long long original_endblock = entry.inode_number + blocks_used;
         long long new_endblock = entry.inode_number + blocks_needed;
@@ -92,6 +95,34 @@ int resize(char* diskName, char* fileName, long long new_size){
     }else if (blocks_used < blocks_needed){
         // we're growing the file. I'll try to find somewhere that this file can fit.
         // but I won't overwrite any data if I can't find the contiguous space
+        
+        // first, check if the space we're in can just easily be grown.
+        int pos;
+        int in_place = 1;
+        for (pos = entry.inode_number+blocks_used; pos<=entry.inode_number+blocks_needed; pos++){
+            if(isfree(pos, fat.free, 0) == 0){
+                in_place = 0;
+                break;          // we cannot allocate the space in this location
+            }
+        }
+        
+        if (in_place){
+            // in place allocation
+            
+            // adjust the entry size and write it back to disk
+            entry.length = new_size;
+
+            fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
+            fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
+            
+            // allocate the space on the char vector
+            allocate(vDisk, fat, entry.inode_number, blocks_needed);
+            
+            
+        }else{
+            // we have to move the file
+            printf("we cannot do an in place allocation");
+        }
         
     }else{
         // same number of blocks, I'm not going to do anything here.

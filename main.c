@@ -16,7 +16,7 @@ int main(int argc, const char * argv[])
     copy("testDisk", "lowlevel.c");
     //copy("testDisk", "lowlevel.h");
 
-    resize("testDisk", "lowlevel.c", 10000);
+    resize("testDisk", "lowlevel.c", 30000);
    // readFile("testDisk", "lowlevel.c");
     //readFile("testDisk", "lowlevel.h");
 
