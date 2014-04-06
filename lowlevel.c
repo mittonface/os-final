@@ -8,10 +8,56 @@
 
 #include "lowlevel.h"
 
+int readFile(char* diskName, char* fileName){
+    
+    // open the vDisk
+    vDisk = fopen(diskName, "r");
+    
+    // open the FAT
+    struct FAT fat;
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    // find the entry that we want to read
+    struct FAT_entry entry;
+    
+    int read_entry;
+    for(read_entry=0; read_entry<fat.fat_size; read_entry++){
+        fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        
+        if(strcmp(entry.filename, fileName))
+            break;
+    }
+    
+    
+    // seek to the location of the file
+    fseek(vDisk,
+          sizeof(struct FAT) +
+          fat.vfree_length +
+          (sizeof(struct FAT_entry)*read_entry),
+          SEEK_CUR);
+    
+    
+    char buffer[BLOCK_SIZE];
+    int bytes_to_read = entry.length;
+
+    while(bytes_to_read > 0){
+        fread(buffer, 1, BLOCK_SIZE, vDisk);
+        printf("%s", buffer);
+        
+        bytes_to_read = bytes_to_read - BLOCK_SIZE;
+    }
+    
+    // error message if applicable
+    if(read_entry >= fat.fat_size)
+        printf("Could not find file (%s) for reading. \n", fileName);
+    
+    return 0;
+}
+
 int format(char* filename, long long size){
     
     struct FAT fat;
-    unsigned char *char_vector;
+    char *char_vector;
     vDisk = fopen(filename, "wb");
     
     
@@ -52,7 +98,7 @@ int create(char* diskName, char* file, long long length){
     fread(&fat, sizeof(struct FAT), 1, vDisk);
     
     // read in char vector for num of blocks
-    fat.free = (unsigned char*)malloc(fat.vfree_length);
+    fat.free = (char*)malloc(fat.vfree_length);
     fread(fat.free, fat.vfree_length, 1, vDisk);
     
     // search for a free entry in the table
@@ -109,7 +155,7 @@ int removeFile(char* diskName, char* file){
     fread(&fat, sizeof(struct FAT), 1, vDisk);
     
     // load up the char vector
-    fat.free=(unsigned char*)malloc(fat.vfree_length);
+    fat.free=(char*)malloc(fat.vfree_length);
     fread(fat.free, fat.vfree_length, 1, vDisk);
     
     
@@ -171,7 +217,7 @@ int copy(char *diskName, char* file){
     fread(&fat, sizeof(struct FAT), 1, vDisk);
     
     // load the char vector
-    fat.free=(unsigned char*)malloc(fat.vfree_length);
+    fat.free=(char*)malloc(fat.vfree_length);
     fread(fat.free, fat.vfree_length, 1, vDisk);
     
     struct FAT_entry entry;
@@ -235,6 +281,8 @@ int copy(char *diskName, char* file){
     
     return 0;
 }
+
+
 int deallocate(FILE* vDisk, struct FAT fat, long long pos, long long length){
     
     // zero all the appropriate locations in the char vector
@@ -319,7 +367,7 @@ int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length){
 
 // I guess we're checking to see if we can fit this file in
 // this location.
-int tryAllocate(long long pos, unsigned char* free, long long end_block, long long length){
+int tryAllocate(long long pos, char* free, long long end_block, long long length){
     
         char offset_check = (free[pos]);
     
@@ -333,12 +381,13 @@ int tryAllocate(long long pos, unsigned char* free, long long end_block, long lo
     return 0;
 }
 
-int isfree(long long pos, unsigned char* free, long long freesize){
+int isfree(long long pos, char* free, long long freesize){
     return !(free[pos]);
 }
 
 // Writes the initial FAT to the beginning of vDisk
-unsigned char* WriteFAT(long long size){
+
+char* WriteFAT(long long size){
     struct FAT fat;
     // initialize these things.
     fat.num_blocks = size;
@@ -347,8 +396,7 @@ unsigned char* WriteFAT(long long size){
     fat.end_block = size-1;
     fat.vfree_length = size+1;
     
-    // character per block? I still am not sure what this characteristic string is
-    fat.free = (unsigned char*)malloc(fat.vfree_length);
+    fat.free = (char*)malloc(fat.vfree_length);
     
     for(int i=0; i<fat.vfree_length; i++){
         fat.free[i] = 0;

@@ -24,7 +24,7 @@ struct FAT{
     long long start_block;
     long long end_block;
     long long vfree_length;
-    unsigned char* free;
+    char* free;
     int fat_size;
 };
 
@@ -36,6 +36,8 @@ struct FAT_entry{
     long long inode_number;
     long long length;
     char filename[MAX_NAME_LENGTH];
+    int owner_id;
+    int group_id;
 };
 
 #endif
