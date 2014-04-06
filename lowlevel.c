@@ -8,33 +8,75 @@
 
 #include "lowlevel.h"
 
+int acquire_lock(FILE* vDisk, char* fileName){
+    
+    // start from the beginning of the disk
+    rewind(vDisk);
 
-int retrieve(char* diskName, char* fileName){
-    
-    // open the vDisk
-    vDisk = fopen(diskName, "r");
-    
-    // open the FAT
+    // find the entry to lock
     struct FAT fat;
     fread(&fat, sizeof(struct FAT), 1, vDisk);
     
-    // find the entry that we want to copy
     struct FAT_entry entry;
     
-    int read_entry;
-    for (read_entry=0; read_entry<fat.fat_size; read_entry++){
+    int lock_entry;
+    for(lock_entry=0; lock_entry<fat.fat_size; lock_entry++){
         fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
         
         if (strcmp(entry.filename, fileName))
             break;
+        
+    }
+    
+    
+    if(lock_entry >= fat.fat_size){
+        printf("Could not find file (%s) for unlocking. \n", fileName);
+    }
+    
+    // back to the beginning of the disk
+    rewind(vDisk);
+    return 0;
+}
+
+
+
+int retrieve(char* diskName, char* fileName){
+
+    // open the vDisk
+    vDisk = fopen(diskName, "r+");
+    
+    //acquire_lock(vDisk, fileName);
+
+
+    // open the FAT
+    struct FAT fat;
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    // get char vector
+    fat.free = (char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
+
+    // find the entry that we want to copy
+    struct FAT_entry entry;
+    
+    long long read_entry;
+    for (read_entry=0; read_entry<fat.fat_size; read_entry++){
+        fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        
+        if (strcmp(entry.filename, fileName) == 0){
+            break;
+        }
+        
     }
     
     // seek to the location of the file
     fseek(vDisk,
           sizeof(struct FAT) +
           fat.vfree_length +
-          (sizeof(struct FAT_entry)*read_entry),
-          SEEK_CUR);
+          sizeof(struct FAT_entry)*fat.fat_size+
+         (BLOCK_SIZE*entry.inode_number),
+          SEEK_SET);
     
     char buffer[BLOCK_SIZE];
     int bytes_to_read = entry.length;
@@ -57,12 +99,6 @@ int retrieve(char* diskName, char* fileName){
     return 0;
 }
 
-int writeFile(char* diskName, char* fileName, char* input){
-    
-    
-    return 0;
-}
-
 
 int readFile(char* diskName, char* fileName){
     
@@ -73,6 +109,11 @@ int readFile(char* diskName, char* fileName){
     struct FAT fat;
     fread(&fat, sizeof(struct FAT), 1, vDisk);
     
+    
+    // get char vector
+    fat.free = (char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
     // find the entry that we want to read
     struct FAT_entry entry;
     
@@ -80,7 +121,7 @@ int readFile(char* diskName, char* fileName){
     for(read_entry=0; read_entry<fat.fat_size; read_entry++){
         fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
         
-        if(strcmp(entry.filename, fileName))
+        if(strcmp(entry.filename, fileName) == 0)
             break;
     }
     
@@ -89,8 +130,9 @@ int readFile(char* diskName, char* fileName){
     fseek(vDisk,
           sizeof(struct FAT) +
           fat.vfree_length +
-          (sizeof(struct FAT_entry)*read_entry),
-          SEEK_CUR);
+          sizeof(struct FAT_entry)*fat.fat_size+
+          (BLOCK_SIZE*entry.inode_number),
+          SEEK_SET);
     
     
     char buffer[BLOCK_SIZE];
@@ -306,7 +348,7 @@ int copy(char *diskName, char* file){
                 long long data_start = sizeof(struct FAT) +
                     fat.vfree_length +
                     (sizeof(struct FAT_entry)*fat.fat_size) +
-                    (pos*BLOCK_SIZE) + 10240;
+                    (pos*BLOCK_SIZE);
                 
                 
                 fseek(vDisk, data_start, SEEK_SET);
@@ -390,6 +432,7 @@ int setFATentry(FILE *vDisk, struct FAT fat, int entry_num,
     strcpy(entry.filename, file);
     entry.length = length;
     entry.inode_number = pos;
+    entry.locked = 0;
     
     // seek to the entry location on the vDisk
     // that means: past the FAT table, past the char string, and to entry #entry_num
@@ -476,6 +519,7 @@ int writeFATentries(){
     
     entry.inode_number = 0ll;
     entry.length = 0ll;
+    entry.locked = 0;
     
     // filename to blank, starting with \0
     for (int i=0; i<MAX_NAME_LENGTH; i++){

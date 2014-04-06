@@ -36,8 +36,7 @@ struct FAT_entry{
     long long inode_number;
     long long length;
     char filename[MAX_NAME_LENGTH];
-    int owner_id;
-    int group_id;
+    int locked;
 };
 
 #endif

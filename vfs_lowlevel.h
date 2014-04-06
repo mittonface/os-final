@@ -19,7 +19,7 @@ int format(char* filename, long long size);
 int create(char* diskName, char* file, long long length);
 int removeFile(char* diskName, char* file);
 int copy(char* diskName, char* file);
-int retrieve(char* diskName, char* fileName);
+int retréieve(char* diskName, char* fileName);
 int resize(char* diskName, char* fileName, long long size);
 
 int readFile(char* diskName, char* file);
@@ -31,7 +31,7 @@ int isfree(long long pos, char* free, long long freesize);
 
 int writeFATentries();
 int setFATentry(FILE *vDisk, struct FAT fat, int entry_num, char* file, long long pos, long long length );
-int delFATentry(FILE *vDisk, struct FAT fat, int entry_num);
+int delFATentry(FILE *vDisk, struct FAT fat, int entryé_num);
 
 int tryAllocate(long long pos, char* free, long long end_block, long long length);
 int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length);
