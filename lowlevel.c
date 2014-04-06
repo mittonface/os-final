@@ -12,10 +12,15 @@ int acquire_lock(FILE* vDisk, char* fileName){
     
     // start from the beginning of the disk
     rewind(vDisk);
+    
 
     // find the entry to lock
     struct FAT fat;
     fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    // get char vector
+    fat.free = (char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
     
     struct FAT_entry entry;
     
@@ -23,7 +28,7 @@ int acquire_lock(FILE* vDisk, char* fileName){
     for(lock_entry=0; lock_entry<fat.fat_size; lock_entry++){
         fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
         
-        if (strcmp(entry.filename, fileName))
+        if (strcmp(entry.filename, fileName) == 0)
             break;
         
     }
@@ -31,10 +36,22 @@ int acquire_lock(FILE* vDisk, char* fileName){
     
     if(lock_entry >= fat.fat_size){
         printf("Could not find file (%s) for unlocking. \n", fileName);
+        rewind(vDisk);
+        return 1;
+    }else{
+        if (entry.locked == 1){
+            printf("Unable to lock file (%s) \n", fileName);
+        }else{
+            // I think I've seeked past the entry I want to overwrite
+            // (the one I currently have.) make the change, seek backwards
+            // write.
+            entry.locked = 1;
+            fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
+            fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
+            rewind(vDisk);
+            return 0;
+        }
     }
-    
-    // back to the beginning of the disk
-    rewind(vDisk);
     return 0;
 }
 
@@ -45,7 +62,9 @@ int retrieve(char* diskName, char* fileName){
     // open the vDisk
     vDisk = fopen(diskName, "r+");
     
-    //acquire_lock(vDisk, fileName);
+    acquire_lock(vDisk, fileName);
+    acquire_lock(vDisk, fileName);
+
 
 
     // open the FAT
