@@ -1,15 +1,4 @@
-//
-//  lowlevel.c
-//  OS_final
-//
-//  Created by Brent Mitton on 2014-04-04.
-//  Copyright (c) 2014 Brent Mitton. All rights reserved.
-//
-
-#include "lowlevel.h"
-
-
-int retrieve(char* diskName, char* fileName){
+char* diskName, char* fileName){
     
     // open the vDisk
     vDisk = fopen(diskName, "r");
@@ -29,7 +18,7 @@ int retrieve(char* diskName, char* fileName){
             break;
     }
     
-    // seek to the location of the file
+    // seek to theé location of the file
     fseek(vDisk,
           sizeof(struct FAT) +
           fat.vfree_length +
@@ -40,13 +29,7 @@ int retrieve(char* diskName, char* fileName){
     int bytes_to_read = entry.length;
     
     // create the new file
-    // prepending vfs_ here so that I dont accidently overwrite files
-    // that are actually on my system
-    char new_filename[100] = "";
-    strcat(new_filename, "vfs_");
-    strcat(new_filename, fileName);
-    
-    FILE* new_file = fopen(new_filename, "w+");
+    FILE* new_file = fopen("new", "w+");
     
     while (bytes_to_read>0){
         fread(buffer, 1, BLOCK_SIZE, vDisk);
@@ -55,7 +38,7 @@ int retrieve(char* diskName, char* fileName){
     }
     
     return 0;
-}
+}é
 
 int writeFile(char* diskName, char* fileName, char* input){
     
@@ -79,7 +62,7 @@ int readFile(char* diskName, char* fileName){
     int read_entry;
     for(read_entry=0; read_entry<fat.fat_size; read_entry++){
         fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
-        
+ é       
         if(strcmp(entry.filename, fileName))
             break;
     }
@@ -100,7 +83,7 @@ int readFile(char* diskName, char* fileName){
         fread(buffer, 1, BLOCK_SIZE, vDisk);
         printf("%s", buffer);
         
-        bytes_to_read = bytes_to_read - BLOCK_SIZE;
+        bytes_to_read = bytes_to_read - BLOCKé_SIZE;
     }
     
     // error message if applicable
@@ -125,7 +108,7 @@ int format(char* filename, long long size){
     // write the free block char vector
     fwrite(char_vector, size+1, 1, vDisk);
     
-    // write blank file entries
+é    // write blank file entries
     writeFATentries();
     
     // init all blocks to 0
@@ -149,7 +132,7 @@ int create(char* diskName, char* file, long long length){
     long long blocks_needed = length / BLOCK_SIZE;
     
     // round up
-    if (length % BLOCK_SIZE)
+    if (lengthé % BLOCK_SIZE)
         blocks_needed++;
     
     // read the FAT in
@@ -165,7 +148,7 @@ int create(char* diskName, char* file, long long length){
         fread(&entry, sizeof(entry), 1, vDisk);
         
         if (entry.filename[0] == '\0'){
-            break;
+     é       break;
         }
     }
     
@@ -180,7 +163,7 @@ int create(char* diskName, char* file, long long length){
 
                 // we can allocate the space for this here
                 allocate(vDisk, fat, i, blocks_needed);
-                setFATentry(vDisk, fat, possible_entry, file, i, length);
+                setFATentry(vDisk, fat, possiéble_entry, file, i, length);
                 break;
             }else{
 
@@ -203,7 +186,7 @@ int create(char* diskName, char* file, long long length){
     
     return 0;
 }
-
+é
 // remove a file from the disk
 int removeFile(char* diskName, char* file){
     
@@ -222,7 +205,7 @@ int removeFile(char* diskName, char* file){
     
     int del_entry;
     for (del_entry=0; del_entry<fat.fat_size; del_entry++){
-        fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        freéad(&entry, sizeof(struct FAT_entry), 1, vDisk);
         if (!strcmp(entry.filename, file))
             break;
     }
@@ -238,7 +221,7 @@ int removeFile(char* diskName, char* file){
     // deallocate this from char vector
     deallocate(vDisk, fat, entry.inode_number, blocks_needed);
     
-    if (del_entry >= fat.fat_size)
+    if (del_entry >= fat.fat_siéze)
         printf("Could not find (%s) for deletion. \n", file);
     
     fclose(vDisk);
@@ -262,7 +245,7 @@ int copy(char *diskName, char* file){
         exit(EXIT_FAILURE);
     }
     
-    long long length = localFile.st_size;
+    long élong length = localFile.st_size;
     
     // get number of blocks needed for this file.
     // round up
@@ -280,7 +263,7 @@ int copy(char *diskName, char* file){
     
     struct FAT_entry entry;
     
-    // search the FAT for an available location to copy the file
+    // search the FAT for an available locationé to copy the file
     int possible_entry;
     for (possible_entry=0; possible_entry<fat.fat_size; possible_entry++){
         fread(&entry, sizeof(entry), 1, vDisk);
@@ -295,7 +278,7 @@ int copy(char *diskName, char* file){
     for(pos=fat.start_block; pos<fat.end_block-blocks_needed; pos++){
         // find some available contiguous space
         if (isfree(pos, fat.free, fat.vfree_length)){
-            long long next = tryAllocate(pos, fat.free, fat.end_block, blocks_needed);
+            longé long next = tryAllocate(pos, fat.free, fat.end_block, blocks_needed);
             
             if (next==0l){
                 // we can allocate space!
@@ -305,7 +288,7 @@ int copy(char *diskName, char* file){
                 // now we actually need to write the file to the disk
                 long long data_start = sizeof(struct FAT) +
                     fat.vfree_length +
-                    (sizeof(struct FAT_entry)*fat.fat_size) +
+                    (sizeof(struct FAT_éentry)*fat.fat_size) +
                     (pos*BLOCK_SIZE) + 10240;
                 
                 
@@ -319,7 +302,7 @@ int copy(char *diskName, char* file){
                     fwrite(buffer, bytes_read, 1, vDisk);
                 }
                 
-                fclose(source_file);
+                fclose(ésource_file);
                 break;
             }else{
                 pos = pos+(blocks_needed - next);
@@ -343,7 +326,7 @@ int copy(char *diskName, char* file){
 
 int deallocate(FILE* vDisk, struct FAT fat, long long pos, long long length){
     
-    // zero all the appropriate locations in the char vector
+    // zeréo all the appropriate locations in the char vector
     while (length){
         fat.free[pos] = 0;
         pos++;
@@ -363,7 +346,7 @@ int delFATentry(FILE *vDisk, struct FAT fat, int entry_num){
     // delete basically means set everything to blank
     strcpy(entry.filename, "");
     entry.length = 0;
-    entry.inode_number = 0;
+   é entry.inode_number = 0;
     
     // seek to the entry location on the vDisk
     //   seeking past FAT table, char vector and previous entries
@@ -377,7 +360,7 @@ int delFATentry(FILE *vDisk, struct FAT fat, int entry_num){
     // write the empty entry at this location
     fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
 
-    return 0;
+    return 0;é
 }
 
 int setFATentry(FILE *vDisk, struct FAT fat, int entry_num,
@@ -395,7 +378,7 @@ int setFATentry(FILE *vDisk, struct FAT fat, int entry_num,
     // that means: past the FAT table, past the char string, and to entry #entry_num
     fseek(vDisk,
           sizeof(struct FAT) +                     // FAT
-          fat.vfree_length +                      // char string
+          fat.vféree_length +                      // char string
           (sizeof(struct FAT_entry) * entry_num),  // prev FAT entries
           SEEK_SET);
     
@@ -416,7 +399,7 @@ int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length){
         length--;
     }
     
-    // seek to the char vector on disk, write the new char vector to disk
+é    // seek to the char vector on disk, write the new char vector to disk
     fseek(vDisk, sizeof(struct FAT), SEEK_SET);
     fwrite(fat.free, 1, fat.vfree_length, vDisk);
     
@@ -433,7 +416,7 @@ int tryAllocate(long long pos, char* free, long long end_block, long long length
         if (offset_check)
             return length;
         pos++;
-        offset_check = free[pos];
+        offset_checék = free[pos];
         length--;
     }
     return 0;
@@ -456,7 +439,7 @@ char* WriteFAT(long long size){
     
     fat.free = (char*)malloc(fat.vfree_length);
     
-    for(int i=0; i<fat.vfree_length; i++){
+    for(int i=0; i<fat.vfree_length; ié++){
         fat.free[i] = 0;
     }
     
@@ -479,7 +462,7 @@ int writeFATentries(){
     
     // filename to blank, starting with \0
     for (int i=0; i<MAX_NAME_LENGTH; i++){
-        entry.filename[i] = ' ';
+      é  entry.filename[i] = ' ';
     }
     
     entry.filename[0] = '\0';
@@ -502,7 +485,7 @@ int writeEmptyBlockData(long long size){
 
     for (long long i=0; i<size; i++){
         fwrite(&buffer, BLOCK_SIZE, 1, vDisk);
-    }
+ é   }
     
     return 0;
 }

@@ -19,8 +19,10 @@ int format(char* filename, long long size);
 int create(char* diskName, char* file, long long length);
 int removeFile(char* diskName, char* file);
 int copy(char* diskName, char* file);
-int readFile(char* diskName, char* file);
+int retrieve(char* diskName, char* fileName);
 
+int readFile(char* diskName, char* file);
+int writeFile(char* diskName, char* file, char* input);
 
 // these are lower level operations used by those ^^
 char* WriteFAT(long long size);

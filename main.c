@@ -15,6 +15,7 @@ int main(int argc, const char * argv[])
     format("testDisk", 1000);
     copy("testDisk", "lowlevel.c");
     readFile("testDisk", "lowlevel.c");
+    retrieve("testDisk", "lowlevel.c");
 
     info("testDisk");
 }
