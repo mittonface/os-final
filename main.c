@@ -13,17 +13,19 @@ int main(int argc, const char * argv[])
 {
 
     format("testDisk", 1000);
-    copy("testDisk", "lowlevel.c");
+    //copy("testDisk", "lowlevel.c");
     //copy("testDisk", "lowlevel.h");
 
-    resize("testDisk", "lowlevel.c", 30000);
+    create("testDisk", "hey", 2048);
+    resize("testDisk", "hey", 5000);
    // readFile("testDisk", "lowlevel.c");
     //readFile("testDisk", "lowlevel.h");
 
-//    retrieve("testDisk", "lowlevel.c");
+    //retrieve("testDisk", "lowlevel.c");
     //retrieve("testDisk", "lowlevel.h");
 
-
+    list_block_entries("testDisk");
+    
     info("testDisk");
 }
 

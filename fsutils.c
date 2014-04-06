@@ -78,6 +78,30 @@ int list(char* filename, char* args){
 }
 
 
+// print all the block entries
+int list_block_entries(char* filename){
+    
+    // open the vdisk
+    vDisk = fopen(filename, "r+");
+    
+    // load fat
+    struct FAT fat;
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    // load characteristic vector
+    fat.free = (char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
+    printf("Characteristic Vector: \n");
+    for (int i=0; i<fat.vfree_length; i++)
+        printf("%d", fat.free[i]);
+    puts("");
+    
+    return 0;
+    
+}
+
+
 
 
 

@@ -66,17 +66,12 @@ int resize(char* diskName, char* fileName, long long new_size){
     if (new_size % BLOCK_SIZE)
         blocks_needed++;
     
-    printf("blocks needed %lld", blocks_needed);
-    printf("blocks used %lld", blocks_used);
-
 
     if (blocks_used > blocks_needed){
         // we're shrinking the file. This could cause us to lose data.
         long long original_endblock = entry.inode_number + blocks_used;
         long long new_endblock = entry.inode_number + blocks_needed;
         
-        for(long long i=original_endblock; i<=new_endblock; i++)
-            fat.free[i] = 0;
         
         // now I need to write the entry back to disk.
         // seek back one entry and save the entry
@@ -84,13 +79,14 @@ int resize(char* diskName, char* fileName, long long new_size){
         fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
         fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
         
-        // now I need to write fat.free back to disk
-        // easiest to just seek there from the beginning of the file.
-        fseek(vDisk,
-              sizeof(struct FAT),
-              SEEK_SET);
+        // deallocate from new_enblock to original_enblock
+
+        deallocate(vDisk, fat, new_endblock, (original_endblock-new_endblock));
         
-        fwrite(fat.free, 1, fat.vfree_length, vDisk);
+        // turns out those changes won't get saved unless I close the disk.
+        // who knew!?
+        fclose(vDisk);
+        free(fat.free);
         return 0;
     }else if (blocks_used < blocks_needed){
         // we're growing the file. I'll try to find somewhere that this file can fit.
@@ -118,6 +114,9 @@ int resize(char* diskName, char* fileName, long long new_size){
             // allocate the space on the char vector
             allocate(vDisk, fat, entry.inode_number, blocks_needed);
             
+            fclose(vDisk);
+            free(fat.free);
+            return 0;
             
         }else{
             // we have to move the file
@@ -364,7 +363,8 @@ int create(char* diskName, char* file, long long length){
  *  The name of the file we want to perform the operation on.
  *
  *  Removes the file from the virtual disk.
- */int removeFile(char* diskName, char* file){
+ */
+int removeFile(char* diskName, char* file){
     
     // open the FAT
     struct FAT fat;
@@ -551,7 +551,7 @@ int format(char* filename, long long size){
  * @param pos
  *  The starting position (on the char. vector) for deallocation.
  * @param length
- *  The amount of blocks to deallocate.
+ *  The amount of blocks to .
  *
  *  Decallocates items from the virtual disk. Does this by marking 0's in
  *  the characteristic vector

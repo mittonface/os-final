@@ -12,5 +12,6 @@
 #include "fs.h"
 int info(char* filename);
 int list(char* filename, char* args);
+int list_block_entries(char* filename);
 
 #endif
