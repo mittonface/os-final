@@ -13,13 +13,13 @@ int main(int argc, const char * argv[])
 {
 
     format("testDisk", 1000);
-    //copy("testDisk", "lowlevel.c");
+    copy("testDisk", "lowlevel.c");
     //copy("testDisk", "lowlevel.h");
 
-    create("testDisk", "hey", 2048);
-    moveFile("testDisk", "hey", 996);
+    //create("testDisk", "hey", 2048);
+    moveFile("testDisk", "lowlevel.c", 100);
     //resize("testDisk", "hey", 5000);
-   // readFile("testDisk", "lowlevel.c");
+    readFile("testDisk", "lowlevel.c");
     //readFile("testDisk", "lowlevel.h");
 
     //retrieve("testDisk", "lowlevel.c");

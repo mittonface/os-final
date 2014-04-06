@@ -67,14 +67,21 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
     int canMove = 1;
 
     // check the characteristic vector for the free space
+    // TODO:
+    //    Found a bit of an issue. Even if the file that we are
+    //    copying is what is currently occupying the space, the
+    //    copy does not work.
+    //    I'll work around this if I have time.
     for (int i=new_inode; i<=new_inode+blocks_needed; i++){
         
         if (i > fat.end_block){
+            printf("this one?");
             canMove = 0;
             break;
         }
         
         if (fat.free[i] != 0){
+            printf("this one!");
             canMove = 0;
             break;
         }
@@ -82,9 +89,66 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
     
     
     if (canMove == 1){
-        puts("CAN MOVE");
+        
+        // I'm going to open up an additional pointer to the vDisk.
+        // This way I can simultaneously read the section to be moved
+        // and write to the new section.
+        FILE* vDisk_TEMP = fopen(diskName, "r+");
+        
+        // read from vDisk_TEMP, write to vDisk
+        
+        // seek to the read location
+        fseek(vDisk_TEMP,
+              sizeof(struct FAT) +
+              fat.vfree_length +
+              sizeof(struct FAT_entry) * fat.fat_size +
+              BLOCK_SIZE * entry.inode_number,
+              SEEK_SET);
+        
+        
+        // seek to the write location
+        fseek(vDisk,
+              sizeof(struct FAT) +
+              fat.vfree_length +
+              sizeof(struct FAT_entry) * fat.fat_size +
+              BLOCK_SIZE * new_inode,
+              SEEK_SET);
+        
+        
+        char buffer[BLOCK_SIZE];
+        long long bytes_to_read = blocks_needed * 512;
+        
+        while (bytes_to_read>0){
+            // move content from read section to write section
+            fread(buffer, 1, BLOCK_SIZE, vDisk_TEMP);
+            fwrite(buffer, BLOCK_SIZE, 1, vDisk);
+            bytes_to_read = bytes_to_read - BLOCK_SIZE;
+        }
+        
+        fclose(vDisk_TEMP);
+        // the data should now be dealt with. Just need to adjust the
+        // fat entry, allocate the new space and deallocate the old space
+        long long old_inode = entry.inode_number;
+        entry.inode_number = new_inode;
+        
+        // unfortunately I have to do a seek to move_entry to write this change.
+        fseek(vDisk,
+              sizeof(struct FAT) +
+              fat.vfree_length +
+              sizeof(struct FAT_entry)*move_entry,
+              SEEK_SET
+              );
+        fwrite(&entry, 1, sizeof(struct FAT_entry), vDisk);
+        
+        // now allocate the new space and deallocate the old space.
+        allocate(vDisk, fat, new_inode, blocks_needed);
+        deallocate(vDisk, fat, old_inode, blocks_needed);
+        
+        fclose(vDisk);
+        free(fat.free);
+        
     }else{
-        printf("Cannot move file (%s) to block (%lld)", fileName, new_inode);
+        printf("Cannot move file (%s) to block (%lld) \n", fileName, new_inode);
         return 1;
     }
     
