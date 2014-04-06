@@ -9,9 +9,25 @@
 #include "lowlevel.h"
 
 
-// this is going to resize files pretty destructively.
-// I'll allow decreasing filesize and removing data,
-// but I'll try to not overwrite files if I increase the filesize
+/**
+ * @param diskName
+ *  The filename of the virtual disk
+ * @param fileName
+ *  The name of the file we want to perform the operation on.
+ * @param new_size
+ *  The new size of the file (in bytes)
+ *
+ *  Resizes the given file. Two different things could happen.
+ *
+ *  If we are making the file bigger, we will try to find enough contiguous
+ *  space on the disk to allow us to store the file. We will never overwrite
+ *  allocated space.
+ *
+ *  If we are making the file smaller, we will just deallocate blocks near the
+ *  end of the file. This could cause the file to lose data. But... I don't really
+ *  know what else to do. Files should already be taking up the amount of space 
+ *  that they need
+ */
 int resize(char* diskName, char* fileName, long long new_size){
     // open the vDisk
     vDisk = fopen(diskName, "r+");
@@ -49,11 +65,8 @@ int resize(char* diskName, char* fileName, long long new_size){
     long long blocks_needed = new_size / BLOCK_SIZE;
     if (new_size % BLOCK_SIZE)
         blocks_needed++;
-    
-    
 
     if (blocks_used > blocks_needed){
-        puts("did I make it here?");
 
         // we're shrinking the file. This could cause us to lose data.
         long long original_endblock = entry.inode_number + blocks_used;
@@ -77,13 +90,10 @@ int resize(char* diskName, char* fileName, long long new_size){
         fwrite(fat.free, 1, fat.vfree_length, vDisk);
         return 0;
     }else if (blocks_used < blocks_needed){
-        puts("did I make it fadsfhere?");
-
         // we're growing the file. I'll try to find somewhere that this file can fit.
         // but I won't overwrite any data if I can't find the contiguous space
+        
     }else{
-        puts("did I mdasake it here?");
-
         // same number of blocks, I'm not going to do anything here.
         return 0;
     }
@@ -91,6 +101,17 @@ int resize(char* diskName, char* fileName, long long new_size){
     return 0;
 }
 
+
+/**
+ * @param diskName
+ *  The filename of the virtual disk
+ * @param fileName
+ *  The name of the file we want to perform the operation on.
+ *
+ *  This function retrieves the file from the virtual disk and stores it on 
+ *  local disk. Stores the file as whatever it was already named, prepended
+ *  with vfs_
+ */
 int retrieve(char* diskName, char* fileName){
 
     // open the vDisk
@@ -155,7 +176,15 @@ int retrieve(char* diskName, char* fileName){
     return 0;
 }
 
-
+/**
+ * @param diskName
+ *  The filename of the virtual disk
+ * @param fileName
+ *  The name of the file we want to perform the operation on.
+ *
+ *  This takes a file on the virtual disk and outputs it contents
+ *  to stdout.
+ */
 int readFile(char* diskName, char* fileName){
     
     // open the vDisk
@@ -218,6 +247,17 @@ int readFile(char* diskName, char* fileName){
     return 0;
 }
 
+
+/**
+ * @param diskName
+ *  The filename of the virtual disk
+ * @param file
+ *  The name of the file we want to perform the operation on.
+ * @param length
+ *  The size of the file to be created (in bytes)
+ *
+ *  Creates an empty file on the virtual disk
+ */
 int create(char* diskName, char* file, long long length){
     
     struct FAT fat;
@@ -285,8 +325,15 @@ int create(char* diskName, char* file, long long length){
     return 0;
 }
 
-// remove a file from the disk
-int removeFile(char* diskName, char* file){
+
+/**
+ * @param diskName
+ *  The filename of the virtual disk
+ * @param fileName
+ *  The name of the file we want to perform the operation on.
+ *
+ *  Removes the file from the virtual disk.
+ */int removeFile(char* diskName, char* file){
     
     // open the FAT
     struct FAT fat;
@@ -329,7 +376,15 @@ int removeFile(char* diskName, char* file){
     
 }
 
-// I think that this copies a file to our vDisk
+
+/**
+ * @param diskName
+ *  The filename of the virtual disk
+ * @param file
+ *  The name of the file (on local disk) we want to perform the operation on.
+ *
+ *  Takes a file from the local disk and copies it to the virtual disk
+ */
 int copy(char *diskName, char* file){
     
     // open our disk
@@ -422,6 +477,14 @@ int copy(char *diskName, char* file){
 }
 
 
+/**
+ * @param filename
+ *  The filename of the virtual disk (to be created)
+ * @param size
+ *  The size of the virtual disk that we will be creating
+ *
+ *  This will format/create a new virtual disk at ./filename
+ */
 
 int format(char* filename, long long size){
     
@@ -449,7 +512,19 @@ int format(char* filename, long long size){
 }
 
 
-
+/**
+ * @param vDisk
+ *  A reference to the virtual disk
+ * @param fat
+ *  A copy of the FAT
+ * @param pos
+ *  The starting position (on the char. vector) for deallocation.
+ * @param length
+ *  The amount of blocks to deallocate.
+ *
+ *  Decallocates items from the virtual disk. Does this by marking 0's in
+ *  the characteristic vector
+ */
 int deallocate(FILE* vDisk, struct FAT fat, long long pos, long long length){
     
     // zero all the appropriate locations in the char vector
@@ -466,6 +541,17 @@ int deallocate(FILE* vDisk, struct FAT fat, long long pos, long long length){
     return 0;
 }
 
+/**
+ * @param vDisk
+ *  A reference to the virtual disk
+ * @param fat
+ *  A copy of the FAT
+ * @param entry_num
+ *  The number of the entry that we want to remove from the FAT.
+ *
+ *  Removes an entry from the FAT. Does this by setting all properties
+ *  to blank
+ */
 int delFATentry(FILE *vDisk, struct FAT fat, int entry_num){
     struct FAT_entry entry;
     
@@ -489,6 +575,23 @@ int delFATentry(FILE *vDisk, struct FAT fat, int entry_num){
     return 0;
 }
 
+
+/**
+ * @param vDisk
+ *  A reference to the virtual disk
+ * @param fat
+ *  A copy of the FAT
+ * @param entry_num
+ *  The number of the entry that we want to remove from the FAT.
+ * @param file
+ *  The filename for the entry on the FAT
+ * @param pos
+ *  The inode number for the entry on the FAT
+ * @param length
+ *  The length of the entry on the FAT (in bytes)
+ *
+ *  Creates a new entry on the FAT for the given file.
+ */
 int setFATentry(FILE *vDisk, struct FAT fat, int entry_num,
                 char* file, long long pos, long long length)
 {
@@ -515,7 +618,19 @@ int setFATentry(FILE *vDisk, struct FAT fat, int entry_num,
     return 0;
 }
 
-
+/**
+ * @param vDisk
+ *  A reference to the virtual disk
+ * @param fat
+ *  A copy of the FAT
+ * @param pos
+ *  The inode number for the entry on the FAT
+ * @param length
+ *  The length of the entry on the FAT (in blocks)
+ *
+ *  Allocates the space as used on the FAT. Does this by writing 
+ *  1's to the characteristic vector
+ */
 int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length){
 
     // populate the char vector with 1s to show that we have used
@@ -533,11 +648,22 @@ int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length){
     return 0;
 }
 
-// I guess we're checking to see if we can fit this file in
-// this location.
+/**
+ * @param pos
+ *  The starting position.
+ * @param free
+ *  The characteristic vector.
+ * @param end_block
+ *  This doesn't actually seem to be used. I can probably get rid of it
+ * @param length
+ *  The length of the item that we want to allocate space for
+ *
+ *  Tries to find a place which to which we can allocate something of length
+ *  length
+ */
 int tryAllocate(long long pos, char* free, long long end_block, long long length){
     
-        char offset_check = (free[pos]);
+    char offset_check = (free[pos]);
     
     while(length){
         if (offset_check)
@@ -549,12 +675,31 @@ int tryAllocate(long long pos, char* free, long long end_block, long long length
     return 0;
 }
 
+
+/**
+ * @param pos
+ *  The position that we want to check.
+ * @param free
+ *  The characteristic vector.
+ * @param freesize
+ *  Not used. Remove.
+ *
+ *  Checks whether a block is allocated
+ */
 int isfree(long long pos, char* free, long long freesize){
     return !(free[pos]);
 }
 
-// Writes the initial FAT to the beginning of vDisk
 
+/**
+ * @param size
+ *  The number of blocks that our disk will have
+ *
+ * @return
+ *  the (fully unallocated) characteristic vector
+ *  
+ *  Create the initial FAT record
+ */
 char* WriteFAT(long long size){
     struct FAT fat;
     // initialize these things.
@@ -576,7 +721,9 @@ char* WriteFAT(long long size){
     return fat.free;
 }
 
-// write blank entries for the entire fat table.
+/**
+ * Writes out blank entries across the whole FAT
+ */
 int writeFATentries(){
     struct FAT fat;
     struct FAT_entry entry;
@@ -603,7 +750,12 @@ int writeFATentries(){
 }
 
 
-// set all blocks to zero
+/**
+ * @param size
+ *  The number of blocks to zero
+ *
+ *  zero the entirety of every block
+ */
 int writeEmptyBlockData(long long size){
     struct file_block buffer;
     
@@ -618,6 +770,18 @@ int writeEmptyBlockData(long long size){
     return 0;
 }
 
+
+/**
+ * @param vDisk
+ *  A reference to the virtual disk
+ * @param fileName
+ *  The file to acquire the lock on
+ * @return 
+ *  1 - if the file is already locked
+ *  0 - if we've acquired the lock.
+ *
+ *  Locks a file so that it cannot be accessed while in use.
+ */
 int acquire_lock(FILE* vDisk, char* fileName){
     
     // start from the beginning of the disk
@@ -666,6 +830,17 @@ int acquire_lock(FILE* vDisk, char* fileName){
     return 0;
 }
 
+
+/**
+ * @param vDisk
+ *  A reference to the virtual disk
+ * @param fileName
+ *  The file to acquire the lock on
+ * @return
+ *  Always returns 0, unless there is an error.
+ *
+ *  Releases the lock on a file so that it can be accessed again.
+ */
 int release_lock(FILE* vDisk, char* fileName){
     // start from the beginning of the disk
     rewind(vDisk);
