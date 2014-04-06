@@ -75,13 +75,13 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
     for (int i=new_inode; i<=new_inode+blocks_needed; i++){
         
         if (i > fat.end_block){
-            printf("this one?");
+            puts("FUCK");
             canMove = 0;
             break;
         }
         
         if (fat.free[i] != 0){
-            printf("this one!");
+            puts("FUCK");
             canMove = 0;
             break;
         }
@@ -266,14 +266,33 @@ int resize(char* diskName, char* fileName, long long new_size){
             return 0;
             
         }else{
-            // writing a function for file moving
-            printf("we cannot do an in place allocation");
+            // find somewhere that we can allocate this file
+            int i;
+            int j;
+            for(i=fat.start_block;i<fat.end_block-blocks_needed; i++){
+                if (isfree(i, fat.free, 0)){
+                    long long next = tryAllocate(i, fat.free, fat.end_block, blocks_needed);
+                    
+                    // move the file to the next available portion of contiguous space
+                    if (next == 0ll){
+                        moveFile(diskName, fileName, i);
+                        break;
+                    }else{
+                        i = i+(blocks_needed-next);
+                    }
+                }
+            }
+            
         }
-        
+
     }else{
         // same number of blocks, I'm not going to do anything here.
         return 0;
     }
+    
+    
+    fclose(vDisk);
+    free(fat.free);
     
     return 0;
 }
@@ -1061,4 +1080,3 @@ int release_lock(FILE* vDisk, char* fileName){
     }
     return 0;
 }
-
