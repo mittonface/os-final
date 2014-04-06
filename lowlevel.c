@@ -14,7 +14,7 @@ int acquire_lock(FILE* vDisk, char* fileName){
     rewind(vDisk);
     
 
-    // find the entry to lock
+    // load the fat
     struct FAT fat;
     fread(&fat, sizeof(struct FAT), 1, vDisk);
     
@@ -22,6 +22,7 @@ int acquire_lock(FILE* vDisk, char* fileName){
     fat.free = (char*)malloc(fat.vfree_length);
     fread(fat.free, fat.vfree_length, 1, vDisk);
     
+    // find the entry to lock
     struct FAT_entry entry;
     
     int lock_entry;
@@ -35,7 +36,7 @@ int acquire_lock(FILE* vDisk, char* fileName){
     
     
     if(lock_entry >= fat.fat_size){
-        printf("Could not find file (%s) for unlocking. \n", fileName);
+        printf("Could not find file (%s) for locking. \n", fileName);
         rewind(vDisk);
         return 1;
     }else{
@@ -49,12 +50,54 @@ int acquire_lock(FILE* vDisk, char* fileName){
             fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
             fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
             rewind(vDisk);
-            return 0;
         }
     }
+    
     return 0;
 }
 
+int release_lock(FILE* vDisk, char* fileName){
+    // start from the beginning of the disk
+    rewind(vDisk);
+    
+    // load the fat
+    struct FAT fat;
+    fread(&fat, sizeof(struct FAT), 1, vDisk);
+    
+    // get char vector
+    fat.free = (char*)malloc(fat.vfree_length);
+    fread(fat.free, fat.vfree_length, 1, vDisk);
+    
+    // find the entry to lock
+    struct FAT_entry entry;
+    
+    int lock_entry;
+    for(lock_entry=0; lock_entry<fat.fat_size; lock_entry++){
+        fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        
+        if (strcmp(entry.filename, fileName) == 0)
+            break;
+        
+    }
+    
+    
+    if (lock_entry > fat.fat_size){
+        printf("Could not find file (%s) for unlocking. \n", fileName);
+        rewind(vDisk);
+        return 1;
+    }else{
+        if (entry.locked == 0)
+            return 0;  // it was already unlocked, that makes things easy.
+        
+        // just like when locking, we've already seeked past the entry.
+        // so we want to seek backwards a bit and save there.
+        entry.locked = 0;
+        fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
+        fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
+        rewind(vDisk);
+    }
+    return 0;
+}
 
 
 int retrieve(char* diskName, char* fileName){
@@ -64,7 +107,8 @@ int retrieve(char* diskName, char* fileName){
     
     acquire_lock(vDisk, fileName);
     acquire_lock(vDisk, fileName);
-
+    release_lock(vDisk, fileName);
+    acquire_lock(vDisk, fileName);
 
 
     // open the FAT
