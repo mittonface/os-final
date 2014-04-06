@@ -75,13 +75,11 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
     for (int i=new_inode; i<=new_inode+blocks_needed; i++){
         
         if (i > fat.end_block){
-            puts("FUCK");
             canMove = 0;
             break;
         }
         
         if (fat.free[i] != 0){
-            puts("FUCK");
             canMove = 0;
             break;
         }
@@ -89,7 +87,6 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
     
     
     if (canMove == 1){
-        
         // I'm going to open up an additional pointer to the vDisk.
         // This way I can simultaneously read the section to be moved
         // and write to the new section.
@@ -147,11 +144,12 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
         fclose(vDisk);
         free(fat.free);
         
+        return 0;
     }else{
         printf("Cannot move file (%s) to block (%lld) \n", fileName, new_inode);
         return 1;
     }
-    
+
     
     return 0;
 }
@@ -185,8 +183,6 @@ int resize(char* diskName, char* fileName, long long new_size){
     // open the FAT
     struct FAT fat;
     fread(&fat, sizeof(struct FAT), 1, vDisk);
-    
-    // get char vector
     fat.free = (char*)malloc(fat.vfree_length);
     fread(fat.free, fat.vfree_length, 1, vDisk);
     
@@ -267,33 +263,50 @@ int resize(char* diskName, char* fileName, long long new_size){
             
         }else{
             // find somewhere that we can allocate this file
-            int i;
             int j;
-            for(i=fat.start_block;i<fat.end_block-blocks_needed; i++){
-                if (isfree(i, fat.free, 0)){
-                    long long next = tryAllocate(i, fat.free, fat.end_block, blocks_needed);
+            long long next;
+            for(j=fat.start_block;j<fat.end_block-blocks_needed; j++){
+                if (isfree(j, fat.free, 0)){
+                    next = tryAllocate(j, fat.free, fat.end_block, blocks_needed);
                     
                     // move the file to the next available portion of contiguous space
                     if (next == 0ll){
-                        moveFile(diskName, fileName, i);
+                        // move file will close the file.
+                        // I want to make sure I can open it again
+                        fpos_t fpointer;
+                        fgetpos(vDisk, &fpointer);
+                        
+                        moveFile(diskName, fileName, j);
+                        
+                        vDisk = fopen(diskName, "r+");
+
+                        fsetpos(vDisk, &fpointer);
+                        
+                        allocate(vDisk, fat, j, blocks_needed);
                         break;
                     }else{
-                        i = i+(blocks_needed-next);
+                        j = j+(blocks_needed-next);
                     }
                 }
             }
+
             
+            if (j >= fat.end_block-blocks_needed){
+                printf("Could not resize (%s). Not enough contiguous space", fileName);
+                return 1;
+            }
+
         }
 
     }else{
         // same number of blocks, I'm not going to do anything here.
+        puts("hello");
         return 0;
     }
     
     
     fclose(vDisk);
     free(fat.free);
-    
     return 0;
 }
 
@@ -830,6 +843,8 @@ int setFATentry(FILE *vDisk, struct FAT fat, int entry_num,
  */
 int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length){
 
+    printf("pos %lld   length %lld \n", pos, length);
+
     // populate the char vector with 1s to show that we have used
     // the blocks
     while (length){
@@ -837,7 +852,7 @@ int allocate(FILE *vDisk, struct FAT fat, long long pos, long long length){
         pos++;
         length--;
     }
-    
+
     // seek to the char vector on disk, write the new char vector to disk
     fseek(vDisk, sizeof(struct FAT), SEEK_SET);
     fwrite(fat.free, 1, fat.vfree_length, vDisk);

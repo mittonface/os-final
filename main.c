@@ -15,7 +15,7 @@ int main(int argc, const char * argv[])
     format("testDisk", 1000);
     copy("testDisk", "lowlevel.c");
     create("testDisk", "heynow", 10000);
-    resize("testDisk", "lowlevel.c", 30000);
+    resize("testDisk", "lowlevel.c", 250000);
     //copy("testDisk", "lowlevel.h");
 
     //create("testDisk", "hey", 2048);
