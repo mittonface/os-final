@@ -38,7 +38,7 @@ int writeFile(char* diskName, char* fileName, char* input, int mode){
         removeFile(diskName, fileName);
         
         // now I'll create a file of the correct size
-        create(diskName, fileName, sizeof(input));
+        create(diskName, fileName, strlen(input));
         
         // now I just need to update the file with the new contents
         // first I'll get the entry so that I can get the inode. Perhaps
@@ -46,7 +46,7 @@ int writeFile(char* diskName, char* fileName, char* input, int mode){
         
         // load vDisk and fat data
         vDisk = fopen(diskName, "r+");
-        
+
         struct FAT fat;
         struct FAT_entry entry;
         
@@ -62,6 +62,12 @@ int writeFile(char* diskName, char* fileName, char* input, int mode){
                 break;
         }
         
+        
+        if (write_entry>=fat.fat_size){
+            printf("Could not find file (%s) to overwrite", fileName);
+            return 1;
+        }
+        
         // now seek to the data location
         // the entry should already be correct
         fseek(vDisk,
@@ -73,13 +79,78 @@ int writeFile(char* diskName, char* fileName, char* input, int mode){
         
         // I should just be able to write directly from the input to the vDisk
         // now
-        fwrite(input, sizeof(input), 1, vDisk);
+        fwrite(input, strlen(input), 1, vDisk);
         
     }else{
         // append the contents to the end of the file.
+        // this is trickier...
+        
+        // load vDisk and fat data
+        vDisk = fopen(diskName, "r+");
+      
+        
+        struct FAT fat;
+        struct FAT_entry entry;
+        
+        fread(&fat, sizeof(struct FAT), 1, vDisk);
+        fat.free = (char*)malloc(fat.vfree_length);
+        fread(fat.free, fat.vfree_length, 1, vDisk);
+        
+        // find the entry that we'll want to change
+        int write_entry;
+        for(write_entry=0; write_entry<fat.fat_size; write_entry++){
+            fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+            
+            if (strcmp(entry.filename, fileName) ==0)
+                break;
+        }
+        
+        // resize the file to allow for the new data.
+        
+        printf("Entry length %lld \n", entry.length);
+        int resize_stat = resize(diskName, fileName, entry.length+strlen(input));
+
+        // I'm going to reload the entry here, because it looks like I might need
+        // to
+        
+        fseek(vDisk, sizeof(struct FAT) + fat.vfree_length, SEEK_SET);
+        
+        for(write_entry=0; write_entry<fat.fat_size; write_entry++){
+            fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+            
+            if (strcmp(entry.filename, fileName) ==0)
+                break;
+        }
+        
+
+        printf("Entry length %lld \n", entry.length);
+        printf("Entry inode %lld \n", entry.inode_number);
+        printf("fat size %lld \n", fat.fat_size);
+        printf("Entry length %lld \n", entry.length);
+
+        if (resize_stat == 0) {
+            // successfully resized the file.
+            // but we need to reopen it now
+            vDisk = fopen(diskName, "r+");
+            
+            fseek(vDisk,
+                  sizeof(struct FAT) +
+                  fat.vfree_length +
+                  (sizeof(struct FAT_entry) * fat.fat_size) +
+                  (BLOCK_SIZE * entry.inode_number) +
+                  entry.length,     // the entry will be the new length of the file
+                  SEEK_SET);                        // but we haven't saved the new yet.
+            
+            fwrite(input, strlen(input), 1, vDisk);
+            fclose(vDisk);
+            free(fat.free);
+        }
+        
+        
     }
     
-    release_lock(vDisk, fileName);
+    fclose(vDisk);
+    
     return 0;
 }
 
@@ -252,11 +323,12 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
  *  that they need
  */
 int resize(char* diskName, char* fileName, long long new_size){
+    
+    printf("NEW SIZE %lld \n", new_size );
     // open the vDisk
     vDisk = fopen(diskName, "r+");
     
-    if (acquire_lock(vDisk, fileName))
-        return 1;
+
     
     // open the FAT
     struct FAT fat;
@@ -308,7 +380,6 @@ int resize(char* diskName, char* fileName, long long new_size){
         // who knew!?
         fclose(vDisk);
         free(fat.free);
-        release_lock(vDisk, fileName);
         return 0;
     }else if (blocks_used < blocks_needed){
         // we're growing the file. I'll try to find somewhere that this file can fit.
@@ -338,7 +409,6 @@ int resize(char* diskName, char* fileName, long long new_size){
             
             fclose(vDisk);
             free(fat.free);
-            release_lock(vDisk, fileName);
             return 0;
             
         }else{
@@ -373,22 +443,25 @@ int resize(char* diskName, char* fileName, long long new_size){
             
             if (j >= fat.end_block-blocks_needed){
                 printf("Could not resize (%s). Not enough contiguous space", fileName);
-                release_lock(vDisk, fileName);
                 return 1;
             }
 
         }
 
     }else{
-        // same number of blocks, I'm not going to do anything here.
-        release_lock(vDisk, fileName);
-        return 0;
+        // same number of blocks, so I dont need to allocate anything else.
+        // I should just need to adjust the entry length
+        entry.length = new_size;
+        
+        // should be able to write back to disk by seeking backwards one
+        // entry
+        fseek(vDisk, -(sizeof(struct FAT_entry)), SEEK_CUR);
+        fwrite(&entry, sizeof(struct FAT_entry), 1, vDisk);
     }
     
     
     fclose(vDisk);
     free(fat.free);
-    release_lock(vDisk, fileName);
     return 0;
 }
 

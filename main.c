@@ -14,11 +14,20 @@ int main(int argc, const char * argv[])
 
     format("testDisk", 1000);
     copy("testDisk", "lowlevel.c");
-    create("testDisk", "heynow", 10000);
-    resize("testDisk", "lowlevel.c", 9000);
+    //create("testDisk", "heynow", 10000);
+    //resize("testDisk", "lowlevel.c", 9000);
     
-    writeFile("testDisk", "heynow", "hey", 0);
-    retrieve("testDisk", "heynow");
+    
+    info("testDisk");
+
+    writeFile("testDisk", "lowlevel.c", "HEY NOW YOU'RE AN ALidanfipadubf aipdbfapif buaipdfbuaspdifbausdfpiabufapidfbipasfdbadpifaspdfbsiudfbasipdfbuL STAR", 1);
+    
+    info("testDisk");
+    
+    
+    
+    
+//retrieve("testDisk", "heynow");
     //copy("testDisk", "lowlevel.h");
 
     //create("testDisk", "hey", 2048);
@@ -27,11 +36,10 @@ int main(int argc, const char * argv[])
     //readFile("testDisk", "lowlevel.c");
     //readFile("testDisk", "lowlevel.h");
 
-    //retrieve("testDisk", "lowlevel.c");
+    retrieve("testDisk", "lowlevel.c");
     //retrieve("testDisk", "lowlevel.h");
 
     //list_block_entries("testDisk");
     
-    info("testDisk");
 }
 
