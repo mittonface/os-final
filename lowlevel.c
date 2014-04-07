@@ -14,6 +14,79 @@
 
 
 
+
+/**
+ * @param diskName
+ *  The filename of the virtual disk
+ * @param fileName
+ *  The file that we want to write to.
+ * @param input
+ *  The input to write to the file
+ * @param mode
+ *  0 - for overwrite
+ *  1 - for append
+ *
+ *  Writes the contents to the file. Depending on the mode
+ *  given this will either replace the entire file contents
+ *  or append to the end of the file. (Growing the file if needed)
+ */
+int writeFile(char* diskName, char* fileName, char* input, int mode){
+    
+    if (mode == 0){
+        // i'm going to cheat a little bit and just delete the file and create
+        // it again with new contents
+        removeFile(diskName, fileName);
+        
+        // now I'll create a file of the correct size
+        create(diskName, fileName, sizeof(input));
+        
+        // now I just need to update the file with the new contents
+        // first I'll get the entry so that I can get the inode. Perhaps
+        // I should have create return the inode
+        
+        // load vDisk and fat data
+        vDisk = fopen(diskName, "r+");
+        
+        struct FAT fat;
+        struct FAT_entry entry;
+        
+        fread(&fat, sizeof(struct FAT), 1, vDisk);
+        fat.free = (char*)malloc(fat.vfree_length);
+        fread(fat.free, fat.vfree_length, 1, vDisk);
+        
+        int write_entry;
+        for (write_entry=0; write_entry<fat.fat_size; write_entry++){
+            fread(&entry, sizeof(struct FAT_entry), 1, vDisk);
+            
+            if (strcmp(entry.filename, fileName) == 0)
+                break;
+        }
+        
+        // now seek to the data location
+        // the entry should already be correct
+        fseek(vDisk,
+              sizeof(struct FAT) +
+              fat.vfree_length +
+              sizeof(struct FAT_entry) * fat.fat_size+
+              BLOCK_SIZE * entry.inode_number,
+              SEEK_SET);
+        
+        // I should just be able to write directly from the input to the vDisk
+        // now
+        fwrite(input, sizeof(input), 1, vDisk);
+        
+    }else{
+        // append the contents to the end of the file.
+    }
+    
+    release_lock(vDisk, fileName);
+    return 0;
+}
+
+
+
+
+
 /**
  * @param diskName
  *  The filename of the virtual disk
@@ -36,6 +109,9 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
     // at the desired location
     vDisk = fopen(diskName, "r+");
     
+    if (acquire_lock(vDisk, fileName))
+        return 1;
+    
     // load FAT and char vector
     struct FAT fat;
     fread(&fat, sizeof(struct FAT), 1, vDisk);
@@ -56,6 +132,7 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
     
     if (move_entry >= fat.fat_size){
         printf("Could not find the file (%s) to move.", fileName);
+        release_lock(vDisk, fileName);
         return 1;
     }
     
@@ -143,14 +220,15 @@ int moveFile(char* diskName, char* fileName, long long new_inode){
         
         fclose(vDisk);
         free(fat.free);
-        
+        release_lock(vDisk, fileName);
         return 0;
     }else{
         printf("Cannot move file (%s) to block (%lld) \n", fileName, new_inode);
+        release_lock(vDisk, fileName);
         return 1;
     }
 
-    
+    release_lock(vDisk, fileName);
     return 0;
 }
 
@@ -230,6 +308,7 @@ int resize(char* diskName, char* fileName, long long new_size){
         // who knew!?
         fclose(vDisk);
         free(fat.free);
+        release_lock(vDisk, fileName);
         return 0;
     }else if (blocks_used < blocks_needed){
         // we're growing the file. I'll try to find somewhere that this file can fit.
@@ -259,6 +338,7 @@ int resize(char* diskName, char* fileName, long long new_size){
             
             fclose(vDisk);
             free(fat.free);
+            release_lock(vDisk, fileName);
             return 0;
             
         }else{
@@ -293,6 +373,7 @@ int resize(char* diskName, char* fileName, long long new_size){
             
             if (j >= fat.end_block-blocks_needed){
                 printf("Could not resize (%s). Not enough contiguous space", fileName);
+                release_lock(vDisk, fileName);
                 return 1;
             }
 
@@ -300,13 +381,14 @@ int resize(char* diskName, char* fileName, long long new_size){
 
     }else{
         // same number of blocks, I'm not going to do anything here.
-        puts("hello");
+        release_lock(vDisk, fileName);
         return 0;
     }
     
     
     fclose(vDisk);
     free(fat.free);
+    release_lock(vDisk, fileName);
     return 0;
 }
 

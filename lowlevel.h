@@ -23,6 +23,7 @@ int retrieve(char* diskName, char* fileName);
 int readFile(char* diskName, char* file);
 int resize(char* diskName, char*fileName, long long new_size);
 int moveFile(char* diskName, char* fileName, long long new_inode);
+int writeFile(char* diskName, char* fileName, char* input, int mode);
 
 // these are lower level operations used by those ^^
 char* WriteFAT(long long size);

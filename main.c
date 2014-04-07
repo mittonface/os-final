@@ -15,7 +15,10 @@ int main(int argc, const char * argv[])
     format("testDisk", 1000);
     copy("testDisk", "lowlevel.c");
     create("testDisk", "heynow", 10000);
-    resize("testDisk", "lowlevel.c", 250000);
+    resize("testDisk", "lowlevel.c", 9000);
+    
+    writeFile("testDisk", "heynow", "hey", 0);
+    retrieve("testDisk", "heynow");
     //copy("testDisk", "lowlevel.h");
 
     //create("testDisk", "hey", 2048);
@@ -27,7 +30,7 @@ int main(int argc, const char * argv[])
     //retrieve("testDisk", "lowlevel.c");
     //retrieve("testDisk", "lowlevel.h");
 
-    list_block_entries("testDisk");
+    //list_block_entries("testDisk");
     
     info("testDisk");
 }
